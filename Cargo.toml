@@ -5,5 +5,6 @@ edition = "2024"
 
 [dependencies]
 tokio = { version = "1.48.0", features = ["rt-multi-thread"] }
-serenity = { git = "https://github.com/mkrasnitski/serenity.git", branch = "label-component" }
+serenity = { git = "https://github.com/mkrasnitski/serenity.git", rev = "bc37312a56f83bb7cb220d857d97f2d58e212713" }
+#serenity = { git = "https://github.com/calum4/serenity.git", rev = "d6cded90387f29191ddb71f2d2a457b2fc943faa" }
 serde_json = "1.0.145"
