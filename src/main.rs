@@ -11,6 +11,7 @@ use serenity::{Client, async_trait};
 use std::borrow::Cow;
 use std::env;
 use std::str::FromStr;
+use strum::IntoEnumIterator;
 
 #[tokio::main]
 async fn main() {
@@ -33,18 +34,56 @@ struct Handler {
     channel_id: GenericChannelId,
 }
 
+#[derive(strum::EnumIter)]
+enum SelectMenuKind {
+    String,
+    User,
+    Role,
+    Mentionable,
+    Channel,
+}
+
+impl SelectMenuKind {
+    fn as_str(&self) -> &'static str {
+        match self {
+            SelectMenuKind::String => "string",
+            SelectMenuKind::User => "user",
+            SelectMenuKind::Role => "role",
+            SelectMenuKind::Mentionable => "mentionable",
+            SelectMenuKind::Channel => "channel",
+        }
+    }
+}
+
+impl FromStr for SelectMenuKind {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "string" => Ok(SelectMenuKind::String),
+            "user" => Ok(SelectMenuKind::User),
+            "role" => Ok(SelectMenuKind::Role),
+            "mentionable" => Ok(SelectMenuKind::Mentionable),
+            "channel" => Ok(SelectMenuKind::Channel),
+            _ => Err(())
+        }
+    }
+}
+
 #[async_trait]
 impl EventHandler for Handler {
     async fn dispatch(&self, context: &Context, event: &FullEvent) {
-        const OPEN_MODAL_BUTTON_ID: &str = "open_example_modal";
         const MODAL_CUSTOM_ID: &str = "example_modal";
-        const STRING_SELECT_CUSTOM_ID: &str = "example_modal";
+        const SELECT_MENU_CUSTOM_ID: &str = "example_select_menu";
 
         match event {
             FullEvent::Ready { .. } => {
-                let msg = CreateMessage::new()
-                    .content("## Modal Values MRE\n\n Click the button below!")
-                    .button(CreateButton::new(OPEN_MODAL_BUTTON_ID).label("Open Modal"));
+                let mut msg = CreateMessage::new()
+                    .content("## Modal Values MRE\n\n Click the button below!");
+
+                for variant in SelectMenuKind::iter() {
+                    msg = msg.button(CreateButton::new(variant.as_str()).label(variant.as_str()));
+                }
 
                 self.channel_id
                     .send_message(context.http(), msg)
@@ -53,26 +92,41 @@ impl EventHandler for Handler {
             }
             FullEvent::InteractionCreate { interaction, .. } => match interaction {
                 Interaction::Component(interaction) => {
-                    if interaction.channel_id != self.channel_id
-                        || interaction.data.custom_id != OPEN_MODAL_BUTTON_ID
-                    {
+                    if interaction.channel_id != self.channel_id {
                         return;
                     }
 
-                    let select_menu_options = [
+                    let Ok(select_menu_kind) = SelectMenuKind::from_str(interaction.data.custom_id.as_str()) else {
+                        return
+                    };
+
+                    let string_select_menu_options = [
                         CreateSelectMenuOption::new("Option 1", "option-1"),
                         CreateSelectMenuOption::new("Option 2", "option-2"),
                     ];
 
-                    let select_menu = CreateSelectMenu::new(
-                        STRING_SELECT_CUSTOM_ID,
-                        CreateSelectMenuKind::String {
-                            options: Cow::Borrowed(select_menu_options.as_slice()),
-                        },
-                    );
+                    let select_menu = match select_menu_kind {
+                        SelectMenuKind::String => {
+                            CreateSelectMenu::new(
+                                SELECT_MENU_CUSTOM_ID,
+                                CreateSelectMenuKind::String {
+                                    options: Cow::Borrowed(string_select_menu_options.as_slice()),
+                                },
+                            )
+                        }
+                        SelectMenuKind::User => CreateSelectMenu::new(
+                            SELECT_MENU_CUSTOM_ID,
+                            CreateSelectMenuKind::User {
+                                default_users: None,
+                            },
+                        ),
+                        SelectMenuKind::Role => CreateSelectMenu::new(SELECT_MENU_CUSTOM_ID, CreateSelectMenuKind::Role { default_roles: None }),
+                        SelectMenuKind::Mentionable => CreateSelectMenu::new(SELECT_MENU_CUSTOM_ID, CreateSelectMenuKind::Mentionable { default_users: None, default_roles: None }),
+                        SelectMenuKind::Channel => CreateSelectMenu::new(SELECT_MENU_CUSTOM_ID, CreateSelectMenuKind::Channel { channel_types: None, default_channels: None }),
+                    };
 
                     let modal_components = [CreateComponent::Label(CreateLabel::select_menu(
-                        "String Select",
+                        "Select Menu",
                         select_menu,
                     ))];
 
